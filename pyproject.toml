@@ -1,0 +1,20 @@
+[project]
+name = "cerdo"
+version = "0.1.0"
+description = "Automatic certificate downloader"
+readme = "README.md"
+authors = [
+    { name = "Camilo Velez", email = "camilov61@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "logfire>=3.14.0",
+    "pydantic-ai>=0.1.6",
+]
+
+[project.scripts]
+cerdo = "cerdo:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
