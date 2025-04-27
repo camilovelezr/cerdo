@@ -15,18 +15,9 @@ logfire.configure()
 logfire.instrument_mcp()
 logfire.instrument_pydantic_ai()
 
-DOWNLOADS_DIR = os.getenv("DOWNLOADS")
-
 playwright = MCPServerStdio(
-    "docker",
-    args=[
-        "run",
-        "-i",
-        "--rm",
-        "-v",
-        f"{DOWNLOADS_DIR}:/app/Downloads",
-        "mcp/playwright_sura",
-    ],
+    "node",
+    args=["/app/playwright/dist/index.js"],
 )
 MODELS = {
     "llama4": "groq:meta-llama/llama-4-scout-17b-16e-instruct",
@@ -35,11 +26,13 @@ MODELS = {
 
 agent = Agent(
     mcp_servers=[playwright],
-    system_prompt="You are the most helpful assistant that can surf the web",
-    instrument=True,
-    model_settings=ModelSettings(
-        parallel_tool_calls=False,
+    system_prompt=(
+        "You are an expert AI assistant on helping people download their certificates from Sura "
+        "by filling out forms and navigating through websites."
+        "You must use the tools provided to you to complete the task."
+        "You must return the message 'Listo! Ya descargue los PDFs!' if successful."
     ),
+    instrument=True,
 )
 
 
@@ -59,7 +52,7 @@ async def download_file(url: str):
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
         with open(
-            f"/Users/cv/Downloads/{datetime.now().strftime('arl_%B_%d_%Y')}.pdf", "wb"
+            f"/app/Downloads/{datetime.now().strftime('arl_%B_%d_%Y')}.pdf", "wb"
         ) as f:
             f.write(response.content)
 
@@ -77,8 +70,8 @@ perform the following task:
 2. 
     a. Click en el boton con texto 'Otras opciones'
     b. Click en el boton con texto 'documentos y certificados'
-3. Seleccionar la opción que diga ARL
-4. Seleccionar la opción que dice Universidad CES 
+3. Click la opción que diga ARL
+4. Click la opción que dice Universidad CES 
 5. Click on "Continuar" button (ng-component > app-arl > main > app-seleccion-empresa > section > button)
 6. Seleccionar la opción: certificado de afiliación
 7. Call 'browser_click_and_extract_url' tool to extract the url of the PDF, since clicking the button would open a new tab and you cannot get the url of the new tab.
@@ -96,7 +89,7 @@ perform the following task:
     selector: '#afiliacionPBS > div > div > form > div:nth-child(9) > div > button'
     waitTime: 20000
     
-14. If successful, return the message 'Listo Lilo! Ya descargue los PDFs!'
+14. If successful, return the message 'Listo! Ya descargue los PDFs!'
 
 
 For 1.c:
@@ -111,13 +104,21 @@ So click number {PASSWORD[0]} then click number {PASSWORD[1]},then click number 
 REMEMBER:
 - you MAY NOT call 'browser_click' to download the PDF
 - you MUST call 'browser_click_and_extract_url' AND THEN CALL 'download_file' to download the PDF
+- you MUST return the message 'Listo! Ya descargue los PDFs!' if successful -> NOTHING ELSE
 
 """
 
 
 async def main():
     async with agent.run_mcp_servers():
-        result = await agent.run(req, model=MODELS["llama4"])
+        result = await agent.run(
+            req,
+            model=MODELS["llama4"],
+            model_settings=ModelSettings(
+                parallel_tool_calls=False,
+                temperature=0.2,
+            ),
+        )
         if result.output != "Listo! Ya descargue los PDFs!":
             logfire.debug("Failed to download PDFs", result=result.output)
             logfire.info("Retrying with Gemini")
